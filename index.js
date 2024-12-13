@@ -139,6 +139,9 @@ const persistData = (email, token, proxy = null) => {
     }
 };
 
+// 硬编码邀请码
+let INVITE_CODE = null; // 初始化为null，表示需要用户输入
+
 // 获取邀请码
 const getInviteCode = () => {
     return new Promise((resolve) => {
@@ -211,8 +214,12 @@ const createUserAccount = async (email, password, proxy = null) => {
         const userName = email.split('@')[0];
         
         console.log(colors.info(`开始注册账号: ${email}`));
-        const invitationCode = await getInviteCode();
         
+        let invitationCode = INVITE_CODE;
+        if (!invitationCode) {
+            invitationCode = await getInviteCode();
+        }
+
         if (!invitationCode) {
             console.log(colors.warning('邀请码不能为空'));
             return null;
