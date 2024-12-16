@@ -139,22 +139,26 @@ const persistData = (email, token, proxy = null) => {
     }
 };
 
-// 硬编码邀请码
-let INVITE_CODE = null; // 初始化为null，表示需要用户输入
+// 邀请码
+let INVITE_CODE = null;
 
 // 获取邀请码
-const getInviteCode = () => {
-    return new Promise((resolve) => {
-        const rl = readlineInterface.createInterface({
-            input: process.stdin,
-            output: process.stdout
-        });
+const getInviteCode = async () => {
+    if (!INVITE_CODE) {
+        const code = await new Promise((resolve) => {
+            const rl = readlineInterface.createInterface({
+                input: process.stdin,
+                output: process.stdout
+            });
 
-        rl.question(colors.info('请输入邀请码: '), (code) => {
-            rl.close();
-            resolve(code.trim());
+            rl.question(colors.info('请输入邀请码: '), (code) => {
+                rl.close();
+                resolve(code.trim());
+            });
         });
-    });
+        INVITE_CODE = code;
+    }
+    return INVITE_CODE;
 };
 
 // 获取邀请链接
@@ -215,10 +219,8 @@ const createUserAccount = async (email, password, proxy = null) => {
         
         console.log(colors.info(`开始注册账号: ${email}`));
         
-        let invitationCode = INVITE_CODE;
-        if (!invitationCode) {
-            invitationCode = await getInviteCode();
-        }
+        // 使用全局的INVITE_CODE
+        let invitationCode = await getInviteCode();
 
         if (!invitationCode) {
             console.log(colors.warning('邀请码不能为空'));
@@ -311,6 +313,9 @@ const runNode = async (email, token, proxy = null) => {
 const executeMain = async () => {
     let cleanupFunctions = [];
     let runningNodes = [];
+
+    // 启动时获取一次邀请码
+    await getInviteCode();
 
     while (true) {
         console.clear();
