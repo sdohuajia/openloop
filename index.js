@@ -309,6 +309,51 @@ const runNode = async (email, token, proxy = null) => {
     }
 };
 
+// 完成任务函数
+const completeTask = async () => {
+    try {
+        console.log(colors.info('正在自动完成任务...'));
+
+        // 假设任务 ID 是固定的，或者从外部获取（例如从 API 获取）
+        const missionId = '123456'; // 这里应该是任务的 ID，根据实际情况修改
+
+        // 从已有数据中加载 token 和 proxy
+        const existingData = loadExistingData();
+        if (Object.keys(existingData).length === 0) {
+            console.log(colors.warning('未找到已登录的账号，请先注册/登录账号'));
+            return;
+        }
+
+        // 遍历所有已登录的用户，并为每个用户完成任务
+        for (const [email, { token, proxy }] of Object.entries(existingData)) {
+            console.log(colors.info(`正在为账号 ${email} 完成任务...`));
+            await dynamicFetch(`https://api.openloop.so/missions/${missionId}/complete`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                }
+            }, proxy);
+            console.log(colors.success(`任务完成! 账号: ${email}`));
+        }
+
+        console.log(colors.success('所有任务完成！'));
+
+        // 等待用户按任意键返回主菜单
+        const rl = readlineInterface.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+
+        rl.question(colors.info('\n按任意键返回主菜单...'), () => {
+            rl.close();
+        });
+
+    } catch (error) {
+        console.error(colors.error(`完成任务失败: ${error.message}`));
+    }
+};
+
 // 主执行函数
 const executeMain = async () => {
     let cleanupFunctions = [];
@@ -326,7 +371,8 @@ const executeMain = async () => {
         console.log(colors.highlight('\n请选择操作:'));
         console.log(colors.info('1. 注册并登录账号'));
         console.log(colors.info('2. 运行带宽共享'));
-        console.log(colors.info('3. 退出程序'));
+        console.log(colors.info('3. 自动完成所有任务'));
+        console.log(colors.info('4. 退出程序'));
 
         const choice = await getUserChoice();
 
@@ -420,6 +466,11 @@ const executeMain = async () => {
                 break;
 
             case '3':
+                // 自动完成所有任务
+                await completeTask();  // 调用完成任务的函数
+                break;
+
+            case '4':
                 cleanupFunctions.forEach(cleanup => cleanup && clearInterval(cleanup));
                 console.log(colors.success('感谢使用，再见！'));
                 process.exit(0);
