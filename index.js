@@ -18,7 +18,7 @@ const colors = {
 // 代理处理函数
 const createProxyAgent = (proxyUrl) => {
     if (!proxyUrl) return null;
-    
+
     try {
         if (proxyUrl.startsWith('socks')) {
             return new SocksProxyAgent(proxyUrl);
@@ -40,7 +40,6 @@ const dynamicFetch = async (url, options = {}, proxyUrl = null) => {
                 options.agent = agent;
             }
         }
-        
         const response = await fetch(url, options);
         return response;
     } catch (error) {
@@ -65,10 +64,10 @@ const loadUserData = () => {
 
         const userData = fileSystem.readFileSync('user.txt', 'utf8');
         const userLines = userData.trim().split('\n');
-        
+
         return userLines.map(line => {
             const [userEmail, userPassword, userProxy] = line.split(',').map(item => item?.trim());
-            
+
             if (!checkEmailValidity(userEmail)) {
                 console.error(colors.error(`邮箱格式不正确: ${userEmail}`));
                 return null;
@@ -95,21 +94,21 @@ const loadUserData = () => {
 const loadExistingData = () => {
     try {
         if (!fileSystem.existsSync('data.txt')) return {};
-        
+
         const existingDataContent = fileSystem.readFileSync('data.txt', 'utf8');
         const existingDataLines = existingDataContent.trim().split('\n');
         const existingDataMap = {};
-        
+
         existingDataLines.forEach(line => {
             const [email, token, proxy] = line.split(',').map(item => item?.trim());
             if (email && token) {
-                existingDataMap[email] = { 
-                    token, 
-                    proxy: proxy && proxy !== '' ? proxy : null 
+                existingDataMap[email] = {
+                    token,
+                    proxy: proxy && proxy !== '' ? proxy : null
                 };
             }
         });
-        
+
         return existingDataMap;
     } catch (error) {
         console.error(colors.error(`读取现有数据失败: ${error.message}`));
@@ -169,11 +168,11 @@ const getInviteLink = async (token, proxy = null) => {
                 'Authorization': `Bearer ${token}`
             }
         }, proxy);
-        
+
         if (!result.ok) {
             throw new Error(`状态码: ${result.status}`);
         }
-        
+
         const data = await result.json();
         return data.data.inviteLink;
     } catch (error) {
@@ -186,7 +185,7 @@ const getInviteLink = async (token, proxy = null) => {
 const authenticateUser = async (email, password, proxy = null) => {
     try {
         console.log(colors.info(`正在登录账号: ${email}`));
-        
+
         const loginDetails = { username: email, password };
         const loginResult = await dynamicFetch('https://api.openloop.so/users/login', {
             method: 'POST',
@@ -216,9 +215,9 @@ const authenticateUser = async (email, password, proxy = null) => {
 const createUserAccount = async (email, password, proxy = null) => {
     try {
         const userName = email.split('@')[0];
-        
+
         console.log(colors.info(`开始注册账号: ${email}`));
-        
+
         // 使用全局的INVITE_CODE
         let invitationCode = await getInviteCode();
 
@@ -227,11 +226,11 @@ const createUserAccount = async (email, password, proxy = null) => {
             return null;
         }
 
-        const registrationDetails = { 
-            name: userName, 
-            username: email, 
-            password, 
-            inviteCode: invitationCode 
+        const registrationDetails = {
+            name: userName,
+            username: email,
+            password,
+            inviteCode: invitationCode
         };
 
         const registrationResult = await dynamicFetch('https://api.openloop.so/users/register', {
@@ -268,7 +267,7 @@ const runNode = async (email, token, proxy = null) => {
     try {
         const inviteLink = await getInviteLink(token, proxy);
         const inviteCode = inviteLink ? inviteLink.split('/').pop() : '获取失败';
-        
+
         let lastBalance = 0;
         return {
             email,
@@ -287,7 +286,7 @@ const runNode = async (email, token, proxy = null) => {
                             quality: quality
                         })
                     }, proxy);
-                    
+
                     if (shareResult.ok) {
                         const shareData = await shareResult.json();
                         if (shareData.data && shareData.data.balances) {
@@ -314,9 +313,6 @@ const completeTask = async () => {
     try {
         console.log(colors.info('正在自动完成任务...'));
 
-        // 假设任务 ID 是固定的，或者从外部获取（例如从 API 获取）
-        const missionId = '123456'; // 这里应该是任务的 ID，根据实际情况修改
-
         // 从已有数据中加载 token 和 proxy
         const existingData = loadExistingData();
         if (Object.keys(existingData).length === 0) {
@@ -327,13 +323,31 @@ const completeTask = async () => {
         // 遍历所有已登录的用户，并为每个用户完成任务
         for (const [email, { token, proxy }] of Object.entries(existingData)) {
             console.log(colors.info(`正在为账号 ${email} 完成任务...`));
-            await dynamicFetch(`https://api.openloop.so/missions/${missionId}/complete`, {
-                method: 'POST',
+            // fetch tasks
+            const resp = await dynamicFetch(`https://api.openloop.so/missions`, {
+                method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
                 }
             }, proxy);
+            const respData = await resp.json();
+            if (respData.code != 2000) {
+                console.log(colors.error(`获取任务列表失败! 账号: ${email}`));
+                continue
+            }
+            respData.data.missions.forEach(async (mission) => {
+                if (mission.status != "available") {
+                    return
+                }
+                const missionId = mission.missionId;
+                await dynamicFetch(`https://api.openloop.so/missions/${missionId}/complete`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    }
+                }, proxy);
+
+            });
             console.log(colors.success(`任务完成! 账号: ${email}`));
         }
 
@@ -383,7 +397,7 @@ const executeMain = async () => {
                 for (const { email, password, proxy } of userList) {
                     await createUserAccount(email, password, proxy);
                 }
-                
+
                 await new Promise((resolve) => {
                     const rl = readlineInterface.createInterface({
                         input: process.stdin,
@@ -411,7 +425,7 @@ const executeMain = async () => {
 
                 console.clear();
                 console.log(colors.success('开始运行所有账号带宽共享...\n'));
-                
+
                 for (const [email, { token, proxy }] of Object.entries(existingData)) {
                     const node = await runNode(email, token, proxy);
                     if (node) {
@@ -426,7 +440,7 @@ const executeMain = async () => {
                     for (let i = 0; i < runningNodes.length; i++) {
                         const { email, inviteCode, proxy, updateStatus } = runningNodes[i];
                         const status = await updateStatus();
-                        
+
                         // Move the cursor to the correct line for this account
                         process.stdout.cursorTo(0, line++);
                         process.stdout.clearLine(0);
@@ -462,7 +476,7 @@ const executeMain = async () => {
                 await updateAllNodes();
 
                 // 等待用户手动中断
-                await new Promise(() => {});
+                await new Promise(() => { });
                 break;
 
             case '3':
